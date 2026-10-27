@@ -11,6 +11,7 @@ Private, English-language Pokémon collection app built with Next.js App Router,
 - Graded cards with any grading company, grade, certificate, and manual valuation.
 - Edit quantity, purchase cost, notes, and graded valuation; remove a purchase with confirmation.
 - Daily scheduled import and historical portfolio snapshots. No sales in v1.
+- Product-level price search, separate standard/holo charts (7/30/90 days), daily prices, and top-five market rises/falls.
 - Owner-only email sign-in, database sessions, 15-minute single-use links, login email throttling, authenticated inventory/catalog routes, origin checks on mutations, and a secret-protected cron endpoint.
 
 ## Local preview
@@ -93,3 +94,19 @@ Domain tests cover missing prices, graded/holo isolation, zero-cost purchases, v
 - Custom uploads are stored as compact data URLs in the private holding record (Neon text column) or browser storage in demo. Remote URLs load directly in the browser without a referrer. Browser storage limits still apply to demo collections with many photos.
 - Run `npm run db:migrate` on an existing database to add `holdings.custom_image_url` before deploying this update. Migration is additive and keeps existing purchases.
 - Metadata can be refreshed separately with `npm run metadata:refresh`; see `data/README.md`. Prices continue to come only from the official Cardmarket daily guide.
+
+## Sealed images
+
+The bundled `data/sealed-metadata.json` maps 522 sealed/non-single catalog products to TCGplayer image URLs from [TCGCSV](https://tcgcsv.com/). Matching requires a unique exact normalized name on both sides; accents and punctuation are normalized, but edition, quantity, case and variant words are retained. Uncertain matches are omitted. Custom photos always take priority. Images are loaded directly from the source CDN and can fall back to an icon if unavailable. Product artwork belongs to its respective owners.
+
+Run `npm run metadata:sealed` after downloading the Cardmarket catalog. The build uses `.cache/tcgcsv-*.json` to avoid repeat requests. The script checks TCGCSV's `last-updated.txt` and refreshes cached files only when a different daily build is published. This is a metadata build step, never a browser API request. Review the generated mapping before committing it. It does not replace Cardmarket prices with TCGplayer prices.
+
+## Product history and market movers
+
+Run `npm run db:migrate` before the next sync to add `market_history`. Each successful sync stores compact standard/holo price pairs for the whole catalog in a JSONB snapshot keyed by Cardmarket's Europe/Berlin source date. Re-imports update that day; stale data cannot create a new observation. Snapshots and catalog updates commit atomically. The latest 90 calendar days relative to the newest source day are retained to bound storage. Monitor actual Neon storage as the catalog grows. No previous dates are backfilled or fabricated.
+
+Price history searches the full catalog, including products you do not own. The chart uses actual calendar spacing and leaves breaks for recorded missing prices. Its percentage change compares the first and last available price within the selected window, with their dates shown. Overview retains the portfolio chart.
+
+“On the radar” ranks the entire catalog by percentage change in standard trend between the two latest available source days; actual dates are shown because imports can be missed. Up to five positive and five negative moves are shown. Missing prices, zero starting prices and unchanged prices are excluded; a genuine numeric zero at the end remains a valid -100% move. Graded estimates and acquisition costs are never included. The daily guide does not provide language/condition-specific prices or sales volume. Two source days are required. Demo graphs and rankings are explicitly illustrative and do not claim real historical market movements.
+
+Automatic PSA pricing is not enabled. A future PokemonPriceTracker integration requires a server-side API key, exact card/variant/grader/grade matching and USD-to-EUR conversion with its own timestamp; raw Cardmarket trend must never substitute for a graded price.

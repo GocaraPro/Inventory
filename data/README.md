@@ -7,3 +7,7 @@ Only explicit numeric Cardmarket product IDs are used. Conflicting IDs that poin
 The metadata dataset license is retained in `TCGDEX-LICENSE`. Pokémon artwork remains the property of its respective rights holders. Images are loaded from the source CDN, not redistributed in this repository.
 
 Refresh with `npm run metadata:refresh` (Node.js, installed project dependencies, and Python 3.9+). Commit the generated snapshot after reviewing the mapping count. Runtime requests do not depend on GitHub or thousands of TCGdex API calls. Unmapped products retain their original Cardmarket name and a fallback illustration.
+
+## Sealed metadata
+
+`sealed-metadata.json` is generated from the official Cardmarket non-singles catalog and TCGplayer's catalog exported by [TCGCSV](https://tcgcsv.com/). Each entry retains both names, the TCGplayer product ID, the returned image URL and source attribution for review. Only unique exact normalized names are joined; no fuzzy match strips edition, quantity or variant markers. Single cards and code cards are excluded. Artwork is loaded from TCGplayer's CDN, not redistributed here. `npm run metadata:sealed` builds from cached group files using an identified User-Agent and paced requests as required by [TCGCSV usage guidelines](https://tcgcsv.com/docs#usage-guidelines). See the main README for refresh rules.

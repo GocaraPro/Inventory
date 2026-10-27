@@ -11,7 +11,8 @@
     "db:migrate": "node --env-file-if-exists=.env.local scripts/migrate.mjs",
     "catalog:download": "node scripts/download-catalog.mjs",
     "sync": "node --env-file-if-exists=.env.local --import tsx scripts/sync.ts",
-    "metadata:refresh": "python scripts/download-metadata.py && node scripts/build-metadata.mjs"
+    "metadata:refresh": "python scripts/download-metadata.py && node scripts/build-metadata.mjs",
+    "metadata:sealed": "node scripts/build-sealed-metadata.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
@@ -23,6 +24,7 @@
     "zod": "^4.0.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.12",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

@@ -38,3 +38,8 @@ CREATE TABLE IF NOT EXISTS login_throttle (
   email text PRIMARY KEY, sent_at timestamptz NOT NULL
 );
 ALTER TABLE holdings ADD COLUMN IF NOT EXISTS custom_image_url text;
+CREATE TABLE IF NOT EXISTS market_history (
+  date date PRIMARY KEY,
+  source_date timestamptz NOT NULL,
+  prices jsonb NOT NULL
+);

@@ -18,6 +18,18 @@ export async function syncCardmarket() {
     }
     statements.push(sql`INSERT INTO sync_state(id,last_success,source_date,error) VALUES(1,now(),${sourceDate},NULL)
       ON CONFLICT(id) DO UPDATE SET last_success=now(),source_date=GREATEST(sync_state.source_date,excluded.source_date),error=NULL`);
+    // Store compact pairs for the entire catalog, keyed by the source day (not execution day).
+    // A retry updates the same day; a stale feed cannot create a false new observation.
+    statements.push(sql`INSERT INTO market_history(date,source_date,prices)
+      SELECT (${sourceDate}::timestamptz AT TIME ZONE 'Europe/Berlin')::date,${sourceDate}::timestamptz,
+        jsonb_object_agg(id::text,jsonb_build_array(trend,holo_trend)) FROM catalog
+      WHERE price_date=${sourceDate}::timestamptz
+        AND ${sourceDate}::timestamptz >= (SELECT max(price_date) FROM catalog)
+      HAVING count(*)>0
+      ON CONFLICT(date) DO UPDATE SET source_date=excluded.source_date,prices=excluded.prices
+      WHERE market_history.source_date<=excluded.source_date`);
+    statements.push(sql`DELETE FROM market_history WHERE date <
+      (SELECT max(date)-89 FROM market_history)`);
     statements.push(sql`INSERT INTO snapshots(date,value,cost,unpriced,source_date)
       SELECT (now() AT TIME ZONE 'Europe/Berlin')::date,
         COALESCE(sum(COALESCE(v.price,0)*v.quantity),0),COALESCE(sum(v.purchase_price*v.quantity),0),
