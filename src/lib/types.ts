@@ -1,10 +1,11 @@
+import type { ProductMetadata } from "./product-metadata";
 export type Kind = "sealed" | "card" | "graded";
-export type Product = {
+export type Product = ProductMetadata & {
   id: number; name: string; category: string; kind: "sealed" | "card";
   expansionId: number; trend: number | null; holoTrend: number | null;
   priceDate: string | null;
 };
-export type Holding = {
+export type Holding = ProductMetadata & {
   id: string; productId: number; name: string; category: string;
   kind: Kind; finish: "standard" | "holo"; condition: "NM" | "MINT";
   quantity: number; purchasePrice: number; purchaseDate: string; notes: string;

@@ -69,7 +69,7 @@ Official public inputs, no Cardmarket API key:
 
 Products and prices are joined by `idProduct`. Imports validate schema version, preserve source timestamps, serialize concurrent imports with a PostgreSQL transaction lock, and commit all price updates and the snapshot atomically. Failed imports preserve the last successful prices and record a visible error. Older source data does not replace newer catalog prices. The source covers broader non-single categories too, so always check the displayed category before adding a sealed product.
 
-**Market estimates, not executable offers:** the daily guide does not isolate English NM/Mint listings, shipping, or a grading company/grade. Standard and holo series are kept separate; missing holo prices never fall back to standard. Confirm Cardmarket product identity/series for ambiguous names; the catalog shows its product and expansion IDs. Images and expanded set metadata are not included in these files, so v1 uses category illustrations instead of unverified card photos. Graded valuations never use raw card trend prices.
+**Market estimates, not executable offers:** the daily guide does not isolate English NM/Mint listings, shipping, or a grading company/grade. Standard and holo series are kept separate; missing holo prices never fall back to standard. Confirm Cardmarket product identity/series for ambiguous names; the catalog shows its product and expansion IDs. Numbers, set names and card artwork are enriched from TCGdex using explicit Cardmarket product IDs. Ambiguous mappings are omitted; unmatched items keep their original catalog names and placeholder illustrations. Graded valuations never use raw card trend prices.
 
 Unknown prices are `null`, excluded from valued totals and unrealised gain; their count is shown. Total investment includes all purchases. Gain percentage uses the acquisition cost of priced items only. Prices older than 48 hours are labelled. Daily snapshots include additions/removals and manual valuations, and are **portfolio totals, not time-weighted investment returns**. Snapshots use the Europe/Berlin calendar date. History begins at your first successful import; no earlier history is fabricated. Catalog data can be stale if Cardmarket has not published a new file; source timestamps remain visible.
 
@@ -83,3 +83,13 @@ npm audit
 ```
 
 Domain tests cover missing prices, graded/holo isolation, zero-cost purchases, validation, source-version failures, and timezone parsing. Before production use, test Neon migrations/imports and actual email sign-in with your configured services.
+
+
+## Card numbers and product images
+
+- Search in any order, e.g. `Charizard 199 151`, `199/165 Charizard`, or `151 Charizard`. Titles show `Charizard ex · 199/165` with the set alongside it. Production and local search use the same bundled metadata snapshot.
+- TCGdex provides English card artwork via verified Cardmarket IDs. Graded items display card artwork unless you upload a photo of your own slab; this is labelled in the item details.
+- Every item supports a custom HTTPS image URL or a PNG/JPEG/WebP upload up to 400 KB. This includes sealed items. Cardmarket's public catalog does not supply product-image URLs, so sealed photos are not guessed from IDs. Images that fail to load fall back to a category illustration.
+- Custom uploads are stored as compact data URLs in the private holding record (Neon text column) or browser storage in demo. Remote URLs load directly in the browser without a referrer. Browser storage limits still apply to demo collections with many photos.
+- Run `npm run db:migrate` on an existing database to add `holdings.custom_image_url` before deploying this update. Migration is additive and keeps existing purchases.
+- Metadata can be refreshed separately with `npm run metadata:refresh`; see `data/README.md`. Prices continue to come only from the official Cardmarket daily guide.

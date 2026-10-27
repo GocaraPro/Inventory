@@ -10,7 +10,7 @@ export async function POST(req: Request) {
   const v = parsed.data;
   const [product] = await db()`SELECT kind FROM catalog WHERE id=${v.productId}`;
   if (!product || (v.kind === "sealed" ? product.kind !== "sealed" : product.kind !== "card")) return Response.json({error:"Choose a matching catalog product."},{status:400});
-  const [row] = await db()`INSERT INTO holdings(product_id,kind,finish,condition,quantity,purchase_price,purchase_date,notes,grading_company,grade,certificate,manual_price,manual_price_date)
-    VALUES(${v.productId},${v.kind},${v.finish},${v.condition},${v.quantity},${v.purchasePrice},${v.purchaseDate},${v.notes},${v.kind==='graded'?v.gradingCompany:null},${v.kind==='graded'?v.grade:null},${v.kind==='graded'?v.certificate:null},${v.kind==='graded'?v.manualPrice:null},${v.kind==='graded'&&v.manualPrice!==null?new Date().toISOString():null}) RETURNING id`;
+  const [row] = await db()`INSERT INTO holdings(product_id,kind,finish,condition,quantity,purchase_price,purchase_date,notes,grading_company,grade,certificate,manual_price,manual_price_date,custom_image_url)
+    VALUES(${v.productId},${v.kind},${v.finish},${v.condition},${v.quantity},${v.purchasePrice},${v.purchaseDate},${v.notes},${v.kind==='graded'?v.gradingCompany:null},${v.kind==='graded'?v.grade:null},${v.kind==='graded'?v.certificate:null},${v.kind==='graded'?v.manualPrice:null},${v.kind==='graded'&&v.manualPrice!==null?new Date().toISOString():null},${v.customImageUrl??null}) RETURNING id`;
   return Response.json(row,{status:201});
 }

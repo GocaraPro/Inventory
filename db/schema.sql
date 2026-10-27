@@ -37,3 +37,4 @@ CREATE TABLE IF NOT EXISTS auth_verification_tokens (
 CREATE TABLE IF NOT EXISTS login_throttle (
   email text PRIMARY KEY, sent_at timestamptz NOT NULL
 );
+ALTER TABLE holdings ADD COLUMN IF NOT EXISTS custom_image_url text;

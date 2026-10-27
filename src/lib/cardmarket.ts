@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Product } from "./types";
+import { enrich } from "./product-metadata";
 const price = z.number().nonnegative().finite().nullable().optional();
 export const catalogFile = z.object({ version: z.literal(1), createdAt: z.string(), products: z.array(z.object({
   idProduct: z.number().int().positive(), name: z.string(), categoryName: z.string(), idExpansion: z.number().int()
@@ -41,6 +42,6 @@ export async function readLocalCatalog() {
   if (localCatalog) return localCatalog;
   const { readFile } = await import("node:fs/promises");
   const files = await Promise.all(["singles", "sealed", "prices"].map(async name => JSON.parse(await readFile(`${process.cwd()}/.cache/${name}.json`, "utf8"))));
-  localCatalog = mergeCatalog(...files as [unknown, unknown, unknown]);
+  localCatalog = mergeCatalog(...files as [unknown, unknown, unknown]).map(enrich);
   return localCatalog;
 }

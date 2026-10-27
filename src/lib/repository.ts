@@ -1,6 +1,8 @@
 import { db } from "./db";
 import type { Holding, Product, Snapshot, SyncInfo } from "./types";
 import { selectPrice } from "./valuation";
+import { metadataFor, matchingMetadataIds } from "./product-metadata";
+import { tokens } from "./product-display";
 const dateOnly=(value:unknown)=>value instanceof Date?value.toISOString().slice(0,10):String(value).slice(0,10);
 export async function getHoldings(): Promise<Holding[]> {
   const rows = await db()`SELECT h.*,c.name,c.category,c.expansion_id,c.trend,c.holo_trend,c.price_date FROM holdings h JOIN catalog c ON c.id=h.product_id ORDER BY h.created_at DESC`;
@@ -11,14 +13,18 @@ export async function getHoldings(): Promise<Holding[]> {
       purchasePrice: Number(r.purchase_price), purchaseDate: dateOnly(r.purchase_date), notes: r.notes,
       gradingCompany: r.grading_company, grade: r.grade, certificate: r.certificate, manualPrice: manual,
       currentPrice: selectPrice(r.kind,r.finish,manual,r.trend === null ? null : Number(r.trend),r.holo_trend === null ? null : Number(r.holo_trend)),
-      priceDate: r.kind === "graded" ? r.manual_price_date : r.price_date };
+      customImageUrl:r.custom_image_url,
+      priceDate: r.kind === "graded" ? r.manual_price_date : r.price_date, ...metadataFor(r.product_id,r.expansion_id) };
   });
 }
 export async function searchProducts(query: string, kind: string): Promise<Product[]> {
-  const term = `%${query.replace(/[\\%_]/g,"\\$&")}%`;
-  const rows = await db()`SELECT * FROM catalog WHERE name ILIKE ${term} AND (${kind}='all' OR kind=${kind}) ORDER BY name,id LIMIT 40`;
+  const ids=matchingMetadataIds(query),words=tokens(query);
+  const rows = await db()`SELECT * FROM catalog WHERE
+    (id IN (SELECT value::integer FROM jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb))
+    OR NOT EXISTS (SELECT 1 FROM jsonb_array_elements_text(${JSON.stringify(words)}::jsonb) AS t(word) WHERE lower(name) NOT LIKE '%' || t.word || '%'))
+    AND (${kind}='all' OR kind=${kind}) ORDER BY (id IN (SELECT value::integer FROM jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb))) DESC,name,id LIMIT 40`;
   return rows.map(r => ({ id:r.id,name:r.name,category:r.category,kind:r.kind,expansionId:r.expansion_id,
-    trend:r.trend === null ? null : Number(r.trend),holoTrend:r.holo_trend === null ? null : Number(r.holo_trend),priceDate:r.price_date }));
+    trend:r.trend === null ? null : Number(r.trend),holoTrend:r.holo_trend === null ? null : Number(r.holo_trend),priceDate:r.price_date,...metadataFor(r.id,r.expansion_id) }));
 }
 export async function getSnapshots(): Promise<Snapshot[]> {
   const rows = await db()`SELECT * FROM snapshots ORDER BY date`;
