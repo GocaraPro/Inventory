@@ -8,7 +8,7 @@ Private, English-language Pokémon collection app built with Next.js App Router,
 - Official Cardmarket catalog search for singles and non-single products, including sealed products.
 - Separate purchase entries with quantity, unit cost, date, notes, English language, and NM/Mint condition.
 - Standard/holo price-series choice. Cardmarket Trend in EUR; no currency conversion.
-- Graded cards with any grading company, grade, certificate, and manual valuation.
+- Graded cards with any grading company, grade, certificate, manual valuation or linked automatic PSA EU estimates (USD 1:1).
 - Edit quantity, purchase cost, notes, and graded valuation; remove a purchase with confirmation.
 - Daily scheduled import and historical portfolio snapshots. No sales in v1.
 - Product-level price search, separate standard/holo charts (7/30/90 days), daily prices, and top-five market rises/falls.
@@ -109,4 +109,18 @@ Price history searches the full catalog, including products you do not own. The 
 
 “On the radar” ranks the entire catalog by percentage change in standard trend between the two latest available source days; actual dates are shown because imports can be missed. Separate lists show up to five positive and five negative moves each for single cards and sealed/non-single products. Missing prices, zero starting prices and unchanged prices are excluded; a genuine numeric zero at the end remains a valid -100% move. Graded estimates and acquisition costs are never included. The daily guide does not provide language/condition-specific prices or sales volume. Two source days are required. Demo graphs and rankings are explicitly illustrative and do not claim real historical market movements.
 
-Automatic PSA pricing is not enabled. A future PokemonPriceTracker integration requires a server-side API key, exact card/variant/grader/grade matching and the owner’s EU estimation rule: retain the numeric USD amount as the EUR estimate (USD 100 → estimated EUR 100), without applying an exchange rate. Preserve the original USD price and source timestamp, and label the result “EU estimate · USD 1:1”. This is a custom valuation assumption, not measured EU sales or currency conversion; raw Cardmarket trend must never substitute for a graded price.
+## Automatic PSA estimates
+
+Set `POKEMON_PRICE_TRACKER_API_KEY` in the Vercel server environment (and `.env.local` for local use). For an existing initialized database, the app applies the additive PSA migration automatically on first use under a transaction lock. It adds PSA columns and cache/budget tables without changing existing purchases. The database role needs permission to alter its tables. Fresh databases still require `npm run db:migrate` for the full schema. Existing graded entries retain manual pricing until explicitly enabled.
+
+In a graded item's details, enable **Automatic PSA pricing**, enter the TCGplayer product ID (the number in its product URL), and click **Look up PSA card**. Review the returned name, set and collector number against your slab, choose the exact printing, confirm the match and save. Cardmarket and TCGplayer IDs are different: never paste a Cardmarket ID into this field. Mapping is explicit because names and collector numbers can be reused across variants. Other graders remain manual.
+
+The server calls `/api/v2/cards?tcgPlayerId=...&limit=1&language=english&includeEbay=true`. It selects `ebay.salesByGrade.psa{grade}` for the declared primary printing, or the exact `salesByPrinting` pool for another printing. It uses **medianPrice**, requires a positive sales count and a valid `lastSaleDate`, and never falls back to another grade, printing, raw value or undated sale. A missing median leaves manual pricing available. Qualifier grades (e.g. OC) are not treated as normal grades.
+
+Owner-requested valuation rule: **USD 100 → estimated EUR 100**. No FX rate is applied. The original USD amount is retained, and the UI labels automatic values **PSA EU estimate · USD 1:1**. This is a personal valuation assumption, not observed European sales. The displayed price date refers to the latest reported sale, not the time we fetched the API. Older sales and failed updates are marked.
+
+Successful responses are shared across holdings/grades/printings and cached for the UTC day. A database reservation limits this app to 45 distinct card requests / 90 credits per UTC day, including failures; lookups explicitly request `limit=1` to avoid the API's default 50-card charge. Rate-limit/authentication errors pause further requests; repeated failed requests for a card wait until the next UTC day. Other applications sharing the key can consume credits independently. No paid plan or credits are purchased. The key is never sent to the browser or returned in an error.
+
+The existing daily cron refreshes enabled PSA entries before calculating the portfolio snapshot; it updates automatic values independently of Cardmarket. Provider failures retain the previous automatic value/date and record an error. A 120-second PSA run budget bounds cron work, with the oldest prices considered first. A missing API key skips PSA without blocking Cardmarket. Only enabled entries use automatic values; manual estimates are preserved when switching modes.
+
+Local tests use PostgreSQL-compatible PGlite and fixture HTTP responses; they do not spend real API credits. Live verification requires the key and database in the execution environment. The API schema was checked against [the provider's OpenAPI specification](https://www.pokemonpricetracker.com/api/openapi).

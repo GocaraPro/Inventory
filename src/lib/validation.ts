@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { safeImageUrl } from "./product-display";
 export const imageInput=z.string().max(600000).nullable().optional().refine(v=>!v||safeImageUrl(v)!==null,'Use a valid HTTPS image URL or a PNG, JPEG or WebP image under 400 KB');
+export const psaFields={psaEnabled:z.boolean().default(false),psaTcgplayerId:z.number().int().positive().nullable().optional(),psaPrinting:z.string().trim().max(100).nullable().optional()};
 export const holdingInput = z.object({
+  ...psaFields,
   productId: z.number().int().positive(), kind: z.enum(["card", "sealed", "graded"]),
   finish: z.enum(["standard", "holo"]), condition: z.enum(["NM", "MINT"]),
   quantity: z.number().int().min(1).max(100000),
@@ -13,6 +15,7 @@ export const holdingInput = z.object({
   manualPrice: z.number().finite().min(0).max(10000000).nullable(),
   customImageUrl:imageInput
 }).superRefine((v, ctx) => {
+  if(v.psaEnabled&&(v.kind!=='graded'||v.gradingCompany?.toUpperCase()!=='PSA'||!v.psaTcgplayerId||!v.psaPrinting))ctx.addIssue({code:'custom',message:'Automatic PSA pricing requires a PSA card, TCGplayer ID and exact printing.',path:['psaEnabled']});
   if (v.kind === "graded" && (!v.gradingCompany || !v.grade)) ctx.addIssue({ code: "custom", message: "Grading company and grade are required", path: ["grade"] });
   if (v.kind === "sealed" && v.finish !== "standard") ctx.addIssue({ code: "custom", message: "Sealed products use standard pricing", path: ["finish"] });
 });

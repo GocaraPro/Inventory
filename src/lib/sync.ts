@@ -1,10 +1,13 @@
 import { db } from "./db";
 import { fetchCatalog } from "./cardmarket";
+import {syncPsa} from './psa-provider';
 export async function syncCardmarket() {
   const sql = db();
   try {
     const products = await fetchCatalog();
     const sourceDate = products[0].priceDate!;
+    // PSA failures must not prevent the independent Cardmarket import.
+    const psa=await syncPsa().catch(()=>({updated:0,error:'PSA update failed; previous prices retained.'}));
     // Stage each batch inside one transaction: a failed import cannot expose partial prices.
     const statements = [];
     for (let i=0;i<products.length;i+=2000) {
@@ -34,12 +37,12 @@ export async function syncCardmarket() {
       SELECT (now() AT TIME ZONE 'Europe/Berlin')::date,
         COALESCE(sum(COALESCE(v.price,0)*v.quantity),0),COALESCE(sum(v.purchase_price*v.quantity),0),
         COALESCE(sum(CASE WHEN v.price IS NULL THEN v.quantity ELSE 0 END),0),${sourceDate}::timestamptz
-      FROM (SELECT h.quantity,h.purchase_price,CASE WHEN h.kind='graded' THEN h.manual_price WHEN h.finish='holo' THEN c.holo_trend ELSE c.trend END AS price
+      FROM (SELECT h.quantity,h.purchase_price,CASE WHEN h.kind='graded' THEN CASE WHEN h.psa_enabled THEN h.psa_price_usd ELSE h.manual_price END WHEN h.finish='holo' THEN c.holo_trend ELSE c.trend END AS price
         FROM holdings h JOIN catalog c ON c.id=h.product_id) v
       ON CONFLICT(date) DO UPDATE SET value=excluded.value,cost=excluded.cost,unpriced=excluded.unpriced,source_date=excluded.source_date`);
     // PostgreSQL transaction-scoped lock serializes concurrent scheduled imports.
     await sql.transaction([sql`SELECT pg_advisory_xact_lock(738201)`,...statements]);
-    return { products: products.length, sourceDate };
+    return { products: products.length, sourceDate,psa };
   } catch (error) {
     await sql`INSERT INTO sync_state(id,error) VALUES(1,'Price update failed. Previous data has been retained.') ON CONFLICT(id) DO UPDATE SET error=excluded.error`;
     throw error;
