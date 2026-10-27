@@ -1,0 +1,51 @@
+"use client";
+import { useEffect,useRef,useState } from "react";
+import { X,Search,LoaderCircle,Check,ArrowLeft,Box,Layers,ShieldCheck,ExternalLink } from "lucide-react";
+import type { Holding,Kind,Product } from "@/lib/types";
+import { money,selectPrice } from "@/lib/valuation";
+import { holdingInput } from "@/lib/validation";
+export default function ItemModal({item,demo,onClose,onSave,onRemove}:{item?:Holding;demo:boolean;onClose:()=>void;onSave:(h:Holding)=>void;onRemove:(id:string)=>void}) {
+  const ref=useRef<HTMLDialogElement>(null);
+  const [kind,setKind]=useState<Kind>(item?.kind??"sealed"),[query,setQuery]=useState(""),[results,setResults]=useState<Product[]>([]),[product,setProduct]=useState<Product|null>(null);
+  const [searching,setSearching]=useState(false),[saving,setSaving]=useState(false),[error,setError]=useState(""),[searchError,setSearchError]=useState(""),[searched,setSearched]=useState(false),[confirmDelete,setConfirmDelete]=useState(false);
+  const [finish,setFinish]=useState<"standard"|"holo">(item?.finish??"standard");
+  useEffect(()=>{ref.current?.showModal();},[]);
+  useEffect(()=>{
+    if(query.trim().length<2){setResults([]);setSearched(false);setSearching(false);return;}
+    const controller=new AbortController();
+    setSearching(true);setSearchError("");
+    const timer=setTimeout(async()=>{
+      try{const response=await fetch(`/api/catalog?q=${encodeURIComponent(query)}&kind=${kind==="sealed"?"sealed":"card"}`,{signal:controller.signal});const data=await response.json();if(!response.ok)throw new Error(data.error);setResults(data);setSearched(true);}
+      catch(e){if(!controller.signal.aborted)setSearchError(e instanceof Error?e.message:"Search failed");}
+      finally{if(!controller.signal.aborted)setSearching(false);}
+    },300);
+    return()=>{clearTimeout(timer);controller.abort();};
+  },[query,kind]);
+  async function save(e:React.FormEvent<HTMLFormElement>){
+    e.preventDefault();setError("");setSaving(true);
+    const f=new FormData(e.currentTarget), manual=f.get("manualPrice");
+    try{
+      const values={productId:item?.productId??product?.id,kind,finish,condition:String(f.get("condition")??item?.condition??"NM"),quantity:Number(f.get("quantity")),purchasePrice:Number(f.get("purchasePrice")),purchaseDate:String(f.get("purchaseDate")??item?.purchaseDate),notes:String(f.get("notes")??""),gradingCompany:String(f.get("gradingCompany")??item?.gradingCompany??"")||null,grade:String(f.get("grade")??item?.grade??"")||null,certificate:String(f.get("certificate")??item?.certificate??"")||null,manualPrice:manual!==null&&manual!==""?Number(manual):null};
+      const parsed=holdingInput.safeParse(values);if(!parsed.success)throw new Error(parsed.error.issues[0].message);
+      if(!demo){const response=await fetch(item?`/api/holdings/${item.id}`:"/api/holdings",{method:item?"PATCH":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(parsed.data)});const data=await response.json();if(!response.ok)throw new Error(data.error??"Could not save item");}
+      const currentPrice=kind==="graded"?values.manualPrice:item?.currentPrice??selectPrice(kind,finish,null,product?.trend??null,product?.holoTrend??null);
+      onSave({...parsed.data,id:item?.id??crypto.randomUUID(),name:item?.name??product!.name,category:item?.category??product!.category,expansionId:item?.expansionId??product!.expansionId,currentPrice,priceDate:kind==="graded"?new Date().toISOString():item?.priceDate??product?.priceDate??null});
+    }catch(e){setError(e instanceof Error?e.message:"Could not save item");setSaving(false);}
+  }
+  async function remove(){setSaving(true);try{if(!demo){const res=await fetch(`/api/holdings/${item!.id}`,{method:"DELETE"});if(!res.ok)throw new Error("Could not remove item");}onRemove(item!.id);}catch(e){setError((e as Error).message);setSaving(false);}}
+  return <dialog ref={ref} className="item-modal" onCancel={onClose} onClick={e=>{if(e.target===ref.current)onClose();}}><div className="modal-heading"><div><div className="eyebrow">YOUR COLLECTION</div><h2>{item?"Item details":"Add to your collection"}</h2></div><button className="icon-button" onClick={onClose} aria-label="Close dialog"><X size={20}/></button></div>
+    <div className="modal-content">{!item&&!product?<><p className="muted">Find your product in the Cardmarket catalog.</p><div className="type-picker">{([['sealed',Box,'Sealed'],['card',Layers,'Single card'],['graded',ShieldCheck,'Graded']] as const).map(([k,Icon,label])=><button key={k} className={kind===k?"selected":""} onClick={()=>{setKind(k);setResults([]);}}><Icon size={23}/>{label}</button>)}</div><div className="search-input modal-search"><Search size={18}/><input autoFocus aria-label="Search Cardmarket catalog" placeholder={kind==="sealed"?"Search a booster box, ETB, bundle…":"Search a Pokémon card…"} value={query} onChange={e=>setQuery(e.target.value)}/>{searching&&<LoaderCircle className="spin" size={17}/>}</div>
+    <div className="catalog-results">{searchError?<p role="alert" className="error">{searchError}</p>:results.map(p=><button key={p.id} className="catalog-result" onClick={()=>{setProduct(p);setFinish("standard");}}><span className={`product-art ${p.kind}`}><Box size={22}/></span><span><strong>{p.name}</strong><small>{p.category} · #{p.id} · Set {p.expansionId}</small></span><span className="result-price">{p.trend!==null?money(p.trend):"No price"}<small>Trend</small></span></button>)}{!searching&&searched&&results.length===0&&!searchError&&<div className="search-empty">No products found. Try a shorter name or another category.</div>}{query.length<2&&<div className="search-empty"><Search size={28}/><p>Start with at least two characters.</p><small>Every purchase is saved separately, so you can track different purchase prices.</small></div>}</div></>:<form onSubmit={save}>
+    {!item&&<button type="button" className="text-button back-button" onClick={()=>setProduct(null)}><ArrowLeft size={15}/> Back to search</button>}
+    <div className="selected-product"><span className={`product-art ${kind}`}><Box size={27}/></span><div><strong>{item?.name??product?.name}</strong><small>{item?.category??product?.category} · Cardmarket #{item?.productId??product?.id}</small></div><Check size={18}/></div>
+    <div className="form-grid"><label>Quantity<input name="quantity" type="number" min="1" max="100000" defaultValue={item?.quantity??1} required/></label><label>Purchase price / item (€)<input name="purchasePrice" type="number" min="0" step="0.01" max="10000000" defaultValue={item?.purchasePrice} placeholder="0.00" required/></label>
+    <label>Purchase date<input name="purchaseDate" type="date" max={new Date().toISOString().slice(0,10)} defaultValue={item?.purchaseDate??new Date().toISOString().slice(0,10)} required disabled={!!item}/></label><label>Language<input value="English" disabled/></label>
+    {kind!=="sealed"&&<><label>Condition<select name="condition" defaultValue={item?.condition??"NM"} disabled={!!item}><option value="NM">Near Mint</option><option value="MINT">Mint</option></select></label><label>Price series<select value={finish} disabled={!!item} onChange={e=>setFinish(e.target.value as "standard"|"holo")}><option value="standard">Standard</option><option value="holo">Holo / reverse series</option></select></label></>}
+    {kind==="graded"&&<><label>Grading company<input name="gradingCompany" list="graders" defaultValue={item?.gradingCompany??"PSA"} placeholder="PSA, BGS, CGC…" required disabled={!!item}/><datalist id="graders"><option>PSA</option><option>BGS</option><option>CGC</option><option>SGC</option><option>ACE</option><option>TAG</option></datalist></label><label>Grade<input name="grade" defaultValue={item?.grade??"10"} placeholder="10" required disabled={!!item}/></label><label>Certificate number<input name="certificate" defaultValue={item?.certificate??""} placeholder="Optional" disabled={!!item}/></label><label>Manual value / item (€)<input name="manualPrice" type="number" min="0" step="0.01" max="10000000" defaultValue={item?.manualPrice??""} placeholder="Unknown"/></label></>}
+    <label className="full-width">Notes<textarea name="notes" rows={3} maxLength={2000} defaultValue={item?.notes??""} placeholder="Purchase details, storage location, or anything to remember…"/></label></div>
+    <div className="form-note">{kind==="graded"?"Graded items use your manual estimate. Raw card prices are never applied to graded items.":"Cardmarket Trend is a market estimate, not an English NM/Mint-specific offer. Verify the product and price series before saving."}</div>
+    {item&&<a className="external-link" href={`https://www.cardmarket.com/en/Pokemon/Products/Search?searchString=${encodeURIComponent(item.name)}`} target="_blank" rel="noreferrer">Find on Cardmarket <ExternalLink size={13}/></a>}
+    {error&&<p role="alert" className="error">{error}</p>}<div className="modal-actions">{item?<button type="button" className="text-button danger" onClick={()=>setConfirmDelete(true)} disabled={saving}>Remove item</button>:<span className="muted small">{demo?"Saved to this browser in demo mode":"Saved privately to your inventory"}</span>}<button className="button primary" disabled={saving} type="submit">{saving?<LoaderCircle size={17} className="spin"/>:<Check size={17}/>} {item?"Save changes":"Add to collection"}</button></div>
+    {confirmDelete&&<div className="delete-confirm" role="alert"><p>Remove this purchase from your inventory? Historical snapshots will remain.</p><button type="button" className="button secondary" onClick={()=>setConfirmDelete(false)}>Keep item</button><button type="button" className="button primary" disabled={saving} onClick={remove}>Remove purchase</button></div>}
+    </form>}</div></dialog>;
+}

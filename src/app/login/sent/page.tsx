@@ -1,0 +1,2 @@
+import Link from "next/link";
+export default function Sent(){return <main className="auth-screen"><section className="auth-card"><span className="pokeball"/><h1>Check your inbox.</h1><p>We sent you a secure sign-in link. Open it on this device to access your collection.</p><p className="muted">The link expires in 15 minutes. Check your spam folder if it doesn’t arrive.</p><Link className="button secondary" href="/login">Back to sign in</Link></section></main>;}

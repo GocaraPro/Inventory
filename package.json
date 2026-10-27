@@ -1,0 +1,31 @@
+{
+  "name": "pokemon-inventory",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "db:migrate": "node --env-file-if-exists=.env.local scripts/migrate.mjs",
+    "catalog:download": "node scripts/download-catalog.mjs",
+    "sync": "node --env-file-if-exists=.env.local --import tsx scripts/sync.ts"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.2",
+    "lucide-react": "^0.468.0",
+    "next": "16.4.3",
+    "next-auth": "^5.0.0-beta.32",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}
