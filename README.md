@@ -30,7 +30,7 @@ The `.cache` catalog is deliberately ignored by Git and excluded from production
 
 ## Connect Neon and email sign-in
 
-1. Copy `.env.example` to `.env.local` and set `DATABASE_URL` to your Neon pooled connection string.
+1. Copy `.env.example` to `.env.local` and set `DATABASE_URL` to your Neon pooled connection string. The existing Vercel integration name `inventory_DATABASE_URL` is also supported everywhere, including migrations and authentication; a non-empty `DATABASE_URL` takes priority.
 2. Set `OWNER_EMAIL` to your own email. Only that address can sign in. Do not commit personal configuration or credentials.
 3. Generate independent random `AUTH_SECRET` and `CRON_SECRET` values:
 
