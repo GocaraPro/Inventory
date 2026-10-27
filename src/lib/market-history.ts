@@ -1,7 +1,11 @@
 import type { Product } from './types';
 export type PricePoint = { date:string; price:number|null };
 export type Mover = Product & { previous:number; current:number; change:number; percent:number };
-export type Movers = { from:string|null; to:string|null; gainers:Mover[]; losers:Mover[]; demo:boolean };
+export type MoverRanking = { gainers:Mover[]; losers:Mover[] };
+export type Movers = { from:string|null; to:string|null; cards:MoverRanking; sealed:MoverRanking; demo:boolean };
+export function rankByKind(items:Mover[]) {
+  return {cards:rankMovers(items.filter(p=>p.kind==='card')),sealed:rankMovers(items.filter(p=>p.kind==='sealed'))};
+}
 export function priceChange(previous:number|null,current:number|null) {
   if(previous===null||current===null||previous<=0||current<0||!Number.isFinite(previous)||!Number.isFinite(current))return null;
   return {change:current-previous,percent:(current-previous)/previous*100};
