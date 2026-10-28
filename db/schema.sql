@@ -60,6 +60,8 @@ CREATE TABLE IF NOT EXISTS psa_cache (
 CREATE TABLE IF NOT EXISTS psa_requests (
   tcgplayer_id integer NOT NULL, date date NOT NULL, PRIMARY KEY(tcgplayer_id,date)
 );
+ALTER TABLE psa_requests ADD COLUMN IF NOT EXISTS attempted_at timestamptz NOT NULL DEFAULT '1970-01-01';
+ALTER TABLE psa_requests ADD COLUMN IF NOT EXISTS attempts integer NOT NULL DEFAULT 1;
 CREATE TABLE IF NOT EXISTS psa_budget (
   date date PRIMARY KEY, credits integer NOT NULL
 );

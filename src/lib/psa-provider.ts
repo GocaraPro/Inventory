@@ -17,9 +17,18 @@ export async function getPsaCard(id:number,deps:{sql?:ReturnType<typeof db>;fetc
   if(cached)return providerCard.parse(cached.data);
   const [blocked]=await sql`SELECT id FROM psa_provider_state WHERE id=1 AND blocked_until>now()`;
   if(blocked)throw new PsaError('Provider requests are paused after a rate limit or authentication error. Cached prices remain available.');
-  // Reserve before HTTP, including failed attempts: max 45 unique card requests / UTC day.
-  const [claim]=await sql`INSERT INTO psa_requests(tcgplayer_id,date) VALUES(${id},(now() AT TIME ZONE 'UTC')::date) ON CONFLICT DO NOTHING RETURNING tcgplayer_id`;
-  if(!claim)throw new PsaError('This card was already requested today. Try after the next daily reset.');
+  // Successful lookups are reusable without a holding. A failed/in-flight request
+  // gets a short lease, rather than blocking the card for the whole day.
+  const [claim]=await sql`INSERT INTO psa_requests(tcgplayer_id,date,attempted_at,attempts) VALUES(${id},(now() AT TIME ZONE 'UTC')::date,now(),1)
+    ON CONFLICT(tcgplayer_id,date) DO UPDATE SET attempted_at=now(),attempts=psa_requests.attempts+1
+    WHERE psa_requests.attempted_at < now()-interval '60 seconds' AND psa_requests.attempts<3 RETURNING tcgplayer_id`;
+  if(!claim){
+    // The winning request may have filled the cache between our first read and claim.
+    const [ready]=await sql`SELECT data FROM psa_cache WHERE tcgplayer_id=${id} AND fetched_at >= date_trunc('day',now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'`;
+    if(ready)return providerCard.parse(ready.data);
+    const [state]=await sql`SELECT attempts FROM psa_requests WHERE tcgplayer_id=${id} AND date=(now() AT TIME ZONE 'UTC')::date`;
+    throw new PsaError(state?.attempts>=3?'Three provider attempts failed today for this card. Try after the daily reset.':'This card is being fetched or a recent attempt failed. Please retry in one minute.');
+  }
   const [budget]=await sql`INSERT INTO psa_budget(date,credits) VALUES((now() AT TIME ZONE 'UTC')::date,2)
     ON CONFLICT(date) DO UPDATE SET credits=psa_budget.credits+2 WHERE psa_budget.credits<=88 RETURNING credits`;
   if(!budget)throw new PsaError('Daily PSA lookup budget reached. Previous prices are retained.');
@@ -35,7 +44,7 @@ export async function getPsaCard(id:number,deps:{sql?:ReturnType<typeof db>;fetc
   const remaining=response.headers.get('X-RateLimit-Daily-Remaining');
   if(remaining!==null&&Number(remaining)<2)await sql`INSERT INTO psa_provider_state(id,blocked_until) VALUES(1,(date_trunc('day',now() AT TIME ZONE 'UTC')+interval '1 day') AT TIME ZONE 'UTC') ON CONFLICT(id) DO UPDATE SET blocked_until=GREATEST(psa_provider_state.blocked_until,excluded.blocked_until)`;
   const body=await response.json();
-  const parsed=providerCard.safeParse(body.data);
+  const parsed=providerCard.safeParse(Array.isArray(body.data)&&body.data.length===1?body.data[0]:body.data);
   if(!parsed.success||parsed.data.tcgPlayerId!==String(id))throw new PsaError('Provider returned an unexpected card. No price was applied.');
   // Store only the validated fields; no raw listings, account data or credentials.
   await sql`INSERT INTO psa_cache(tcgplayer_id,data,fetched_at) VALUES(${id},${JSON.stringify(parsed.data)}::jsonb,now())

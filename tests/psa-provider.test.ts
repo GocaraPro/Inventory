@@ -48,5 +48,16 @@ test('provider caches across grades, reserves credits, caps requests and honors 
     await pg.exec('TRUNCATE psa_provider_state,psa_requests');
     await assert.rejects(getPsaCard(1,{...deps,fetcher:(async()=>Response.json({data:{tcgPlayerId:'2',name:'Wrong',setName:'Set',cardNumber:'1'}})) as typeof fetch}),/unexpected card/);
     assert.equal((await pg.query('SELECT * FROM psa_cache')).rows.length,0);
+    await assert.rejects(getPsaCard(1,deps),/one minute/);
+    await pg.exec("UPDATE psa_requests SET attempted_at=now()-interval '61 seconds'");
+    const recovered=await getPsaCard(1,{...deps,fetcher:(async()=>Response.json({data:[{tcgPlayerId:'1',name:'Card',setName:'Set',cardNumber:'1'}]})) as typeof fetch});
+    assert.equal(recovered.tcgPlayerId,'1');
+    await getPsaCard(1,{...deps,fetcher:(async()=>{throw new Error('Cache must prevent a new provider call');}) as typeof fetch});
+    const failing={...deps,fetcher:(async()=>new Response('',{status:503})) as typeof fetch};
+    for(let attempt=0;attempt<3;attempt++){
+      await assert.rejects(getPsaCard(3,failing),/unavailable/);
+      await pg.exec("UPDATE psa_requests SET attempted_at=now()-interval '61 seconds'");
+    }
+    await assert.rejects(getPsaCard(3,failing),/Three provider attempts/);
   }finally{await pg.close();}
 });

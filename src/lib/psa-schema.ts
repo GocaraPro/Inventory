@@ -9,6 +9,8 @@ export const psaSchema=[
   'ALTER TABLE holdings ADD COLUMN IF NOT EXISTS psa_error text',
   'CREATE TABLE IF NOT EXISTS psa_cache (tcgplayer_id integer PRIMARY KEY, data jsonb NOT NULL, fetched_at timestamptz NOT NULL)',
   'CREATE TABLE IF NOT EXISTS psa_requests (tcgplayer_id integer NOT NULL, date date NOT NULL, PRIMARY KEY(tcgplayer_id,date))',
+  "ALTER TABLE psa_requests ADD COLUMN IF NOT EXISTS attempted_at timestamptz NOT NULL DEFAULT '1970-01-01'",
+  'ALTER TABLE psa_requests ADD COLUMN IF NOT EXISTS attempts integer NOT NULL DEFAULT 1',
   'CREATE TABLE IF NOT EXISTS psa_budget (date date PRIMARY KEY, credits integer NOT NULL)',
   'CREATE TABLE IF NOT EXISTS psa_provider_state (id integer PRIMARY KEY CHECK(id=1), blocked_until timestamptz NOT NULL)'
 ];

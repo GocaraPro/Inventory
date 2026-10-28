@@ -11,7 +11,7 @@ async function guard(req:Request,id:string) {
   if (!sameOrigin(req)) return Response.json({error:"Invalid origin"},{status:403});
   if (isDemo() || !z.uuid().safeParse(id).success) return Response.json({error:"Invalid request"},{status:400});
 }
-export async function PATCH(req:Request,ctx:{params:Promise<{id:string}>}) {
+async function patch(req:Request,ctx:{params:Promise<{id:string}>}) {
   const {id}=await ctx.params; const blocked=await guard(req,id);if(blocked)return blocked;
   const parsed=change.safeParse(await req.json().catch(()=>null));
   if(!parsed.success)return Response.json({error:"Please check the entered values."},{status:400});
@@ -25,7 +25,7 @@ export async function PATCH(req:Request,ctx:{params:Promise<{id:string}>}) {
   try{quote=unchanged?{usd:existing.psa_price_usd,date:existing.psa_price_date}:await preparePsa({...v,kind:existing.kind,gradingCompany:existing.grading_company,grade:existing.grade});}catch(e){return Response.json({error:psaErrorMessage(e)},{status:400});}
   const rows=await db()`UPDATE holdings SET quantity=${v.quantity},purchase_price=${v.purchasePrice},notes=${v.notes},custom_image_url=${v.customImageUrl??null},
     psa_enabled=${v.psaEnabled},psa_tcgplayer_id=${v.psaTcgplayerId??null},psa_printing=${v.psaPrinting??null},psa_price_usd=${quote?.usd??null},psa_price_date=${quote?.date??null},psa_error=${unchanged?existing.psa_error:null},
-    manual_price=CASE WHEN kind='graded' THEN ${v.manualPrice} ELSE NULL END,
+    manual_price=CASE WHEN kind='graded' THEN ${v.manualPrice}::numeric ELSE NULL::numeric END,
     manual_price_date=CASE WHEN kind='graded' AND manual_price IS DISTINCT FROM ${v.manualPrice}::numeric THEN now() ELSE manual_price_date END
     WHERE id=${id} RETURNING id`;
   return rows.length?Response.json({ok:true}):Response.json({error:"Item not found"},{status:404});
@@ -34,4 +34,9 @@ export async function DELETE(req:Request,ctx:{params:Promise<{id:string}>}) {
   const {id}=await ctx.params;const blocked=await guard(req,id);if(blocked)return blocked;
   await db()`DELETE FROM holdings WHERE id=${id}`;
   return Response.json({ok:true});
+}
+
+export async function PATCH(req:Request,ctx:{params:Promise<{id:string}>}) {
+  try{return await patch(req,ctx);}
+  catch(error){console.error('Holding update failed',error instanceof Error?error.name:'Unknown error');return Response.json({error:'Could not save this item. Please retry; your previous values are unchanged.'},{status:500});}
 }
