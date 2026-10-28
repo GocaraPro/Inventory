@@ -124,3 +124,10 @@ Successful responses are shared across holdings/grades/printings and cached for 
 The existing daily cron refreshes enabled PSA entries before calculating the portfolio snapshot; it updates automatic values independently of Cardmarket. Provider failures retain the previous automatic value/date and record an error. A 120-second PSA run budget bounds cron work, with the oldest prices considered first. A missing API key skips PSA without blocking Cardmarket. Only enabled entries use automatic values; manual estimates are preserved when switching modes.
 
 Local tests use PostgreSQL-compatible PGlite and fixture HTTP responses; they do not spend real API credits. Live verification requires the key and database in the execution environment. The API schema was checked against [the provider's OpenAPI specification](https://www.pokemonpricetracker.com/api/openapi).
+
+
+## Password access and initial catalog import
+
+Production builds apply the additive schema migration and import Cardmarket if the catalog is empty. A failed initial import fails the deployment instead of publishing an empty search. Existing catalogs are preserved; authenticated owners can use Settings → Refresh catalog & prices (five-minute cooldown). Daily refresh requires CRON_SECRET in Vercel Production.
+
+Use First time here or forgot your password? on /login to verify the owner email. The link opens /account/password; choose and confirm a 12–128 character password within 15 minutes. Passwords are stored as salted scrypt hashes. Subsequent access uses email/password with a 30-day Auth.js encrypted JWT session. Each request checks the user's session version in Neon; setting/resetting the password revokes existing sessions. Password sign-in is limited to five attempts per owner per 15 minutes; email recovery remains available. The switch from database sessions requires existing users to verify their email once again. No public signup is available.

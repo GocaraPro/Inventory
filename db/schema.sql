@@ -37,6 +37,11 @@ CREATE TABLE IF NOT EXISTS auth_verification_tokens (
 CREATE TABLE IF NOT EXISTS login_throttle (
   email text PRIMARY KEY, sent_at timestamptz NOT NULL
 );
+ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS password_hash text;
+ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS session_version integer NOT NULL DEFAULT 0;
+CREATE TABLE IF NOT EXISTS password_attempts (
+  email text PRIMARY KEY, attempts integer NOT NULL, started_at timestamptz NOT NULL
+);
 ALTER TABLE holdings ADD COLUMN IF NOT EXISTS custom_image_url text;
 CREATE TABLE IF NOT EXISTS market_history (
   date date PRIMARY KEY,

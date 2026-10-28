@@ -1,5 +1,5 @@
 import { isOwner } from "@/lib/access";
-import { isDemo } from "@/lib/db";
+import { db, isDemo } from "@/lib/db";
 import { readLocalCatalog } from "@/lib/cardmarket";
 import { searchProducts } from "@/lib/repository";
 import { matchesSearch,searchText } from "@/lib/product-display";
@@ -13,6 +13,10 @@ export async function GET(req: Request) {
   }
   if (q.length<2) return Response.json([]);
   try {
+    if (!isDemo()) {
+      const [state]=await db()`SELECT EXISTS(SELECT 1 FROM catalog) AS populated`;
+      if (!state.populated) return Response.json({error:'The catalog has not been imported yet. Open Settings and select Refresh catalog & prices.'},{status:503});
+    }
     const items = isDemo() ? (await readLocalCatalog()).filter(p=>p.kind===kind && matchesSearch(searchText(p),q)).sort((a,b)=>Number(!!b.cardNumber)-Number(!!a.cardNumber)||a.name.localeCompare(b.name)).slice(0,40) : await searchProducts(q,kind);
     return Response.json(items,{headers:{"Cache-Control":"private, no-store"}});
   } catch { return Response.json({error:"Catalog unavailable. Download or import the Cardmarket catalog first."},{status:503}); }
