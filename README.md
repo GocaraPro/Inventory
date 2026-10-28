@@ -131,3 +131,12 @@ Local tests use PostgreSQL-compatible PGlite and fixture HTTP responses; they do
 Production builds apply the additive schema migration and import Cardmarket if the catalog is empty. A failed initial import fails the deployment instead of publishing an empty search. Existing catalogs are preserved; authenticated owners can use Settings → Refresh catalog & prices (five-minute cooldown). Daily refresh requires CRON_SECRET in Vercel Production.
 
 Use First time here or forgot your password? on /login to verify the owner email. The link opens /account/password; choose and confirm a 12–128 character password within 15 minutes. Passwords are stored as salted scrypt hashes. Subsequent access uses email/password with a 30-day Auth.js encrypted JWT session. Each request checks the user's session version in Neon; setting/resetting the password revokes existing sessions. Password sign-in is limited to five attempts per owner per 15 minutes; email recovery remains available. The switch from database sessions requires existing users to verify their email once again. No public signup is available.
+
+
+## Sales and profit
+
+My collection shows unrealised Profit / item in EUR beside Value / item. Sell records quantity, price per unit, sale date and total fees/costs. A PostgreSQL transaction locks the purchase, reduces remaining quantity or removes a fully sold lot, and keeps a permanent JSON snapshot with its cost basis in sales. Submission UUIDs prevent retries from deducting stock twice. The Sales view lists completed sales and realised profit: (sale price − purchase price) × quantity − total costs. Recording a sale is bookkeeping only; it does not list or sell anything on a marketplace. Demo does not write sales.
+
+## Automatic PSA card links
+
+The TCGdex metadata build now includes a TCGplayer ID only when the same source entry/variant explicitly maps both marketplace IDs and there is one unique TCGplayer ID for that Cardmarket product. 19,523 products have verified links in the bundled snapshot. Find PSA price automatically resolves the chosen catalog product on the server and uses the existing cached/budgeted price lookup. The owner still confirms the printing and grade; ambiguous or missing mappings retain the manual ID fallback. No extra discovery API credits are spent.

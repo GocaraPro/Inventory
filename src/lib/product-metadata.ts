@@ -1,7 +1,7 @@
 import { matchesSearch,searchText } from './product-display';
 import dataset from '../../data/card-metadata.json';
 import sealedDataset from '../../data/sealed-metadata.json';
-export type ProductMetadata={tcgdexId?:string|null;cardName?:string|null;cardNumber?:string|null;setTotal?:number|null;setName?:string|null;setCode?:string|null;imageUrl?:string|null;customImageUrl?:string|null;imageSource?:string|null};
+export type ProductMetadata={tcgplayerId?:number|null;tcgdexId?:string|null;cardName?:string|null;cardNumber?:string|null;setTotal?:number|null;setName?:string|null;setCode?:string|null;imageUrl?:string|null;customImageUrl?:string|null;imageSource?:string|null};
 type Entry=Omit<ProductMetadata,'customImageUrl'>;
 const cards:Record<string,Entry>=dataset.cards;
 const sets:Record<string,{setName:string;setCode:string}>=dataset.sets;

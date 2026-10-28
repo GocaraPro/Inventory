@@ -17,3 +17,4 @@ export type Holding = ProductMetadata & {
 };
 export type Snapshot = { date: string; value: number; cost: number; unpriced: number };
 export type SyncInfo = { lastSuccess: string | null; sourceDate: string | null; error: string | null };
+export type Sale = {id:string;product:Holding;quantity:number;purchasePrice:number;salePrice:number;fees:number;saleDate:string;notes:string};

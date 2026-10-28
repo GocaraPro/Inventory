@@ -1,10 +1,15 @@
 import { db } from "./db";
-import type { Holding, Product, Snapshot, SyncInfo } from "./types";
+import type { Holding, Product, Snapshot, SyncInfo, Sale } from "./types";
 import { selectPrice } from "./valuation";
 import { metadataFor, matchingMetadataIds } from "./product-metadata";
 import { tokens } from "./product-display";
 import {ensurePsaSchema} from './psa-schema';
 const dateOnly=(value:unknown)=>value instanceof Date?value.toISOString().slice(0,10):String(value).slice(0,10);
+export async function getSales():Promise<Sale[]> {
+  const rows=await db()`SELECT * FROM sales ORDER BY sale_date DESC,created_at DESC`;
+  return rows.map(r=>({id:r.id,quantity:r.quantity,purchasePrice:Number(r.purchase_price),salePrice:Number(r.sale_price),fees:Number(r.fees),saleDate:dateOnly(r.sale_date),notes:r.notes,
+    product:{...r.product,id:r.holding_id,productId:r.product_id,expansionId:r.product.expansion_id,gradingCompany:r.product.grading_company,customImageUrl:r.product.custom_image_url,...metadataFor(r.product_id,r.product.expansion_id)}}));
+}
 export async function getHoldings(): Promise<Holding[]> {
   await ensurePsaSchema();
   const rows = await db()`SELECT h.*,c.name,c.category,c.expansion_id,c.trend,c.holo_trend,c.price_date FROM holdings h JOIN catalog c ON c.id=h.product_id ORDER BY h.created_at DESC`;

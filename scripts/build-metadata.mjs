@@ -34,7 +34,10 @@ for(const serie of await readdir(root,{withFileTypes:true})){
       const ids=[...new Set(mappings.filter(Number.isInteger))];
       for(const productId of ids){
         if(metadata[productId]&&metadata[productId].tcgdexId!==id){conflicts.add(productId);continue;}
-        metadata[productId]={tcgdexId:id,cardName:card.name,cardNumber:card.localId,setTotal:set.cardCount?.official??null,setName:set.name.en,setCode:set.id,imageUrl:card.image?`${card.image}/high.webp`:null};
+        const links=[source,...(Array.isArray(source.variants)?source.variants:[])];
+        const exact=links.filter(v=>v.thirdParty?.cardmarket===productId);
+        const tcgIds=[...new Set(exact.map(v=>v.thirdParty?.tcgplayer).filter(Number.isInteger))];
+        metadata[productId]={tcgdexId:id,tcgplayerId:tcgIds.length===1?tcgIds[0]:null,cardName:card.name,cardNumber:card.localId,setTotal:set.cardCount?.official??null,setName:set.name.en,setCode:set.id,imageUrl:card.image?`${card.image}/high.webp`:null};
       }
     }
   }

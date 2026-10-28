@@ -66,3 +66,11 @@ CREATE TABLE IF NOT EXISTS psa_budget (
 CREATE TABLE IF NOT EXISTS psa_provider_state (
   id integer PRIMARY KEY CHECK(id=1), blocked_until timestamptz NOT NULL
 );
+CREATE TABLE IF NOT EXISTS sales (
+  id uuid PRIMARY KEY, holding_id uuid NOT NULL, product_id integer NOT NULL,
+  product jsonb NOT NULL, quantity integer NOT NULL CHECK(quantity>0),
+  purchase_price numeric(14,2) NOT NULL CHECK(purchase_price>=0),
+  sale_price numeric(14,2) NOT NULL CHECK(sale_price>=0),
+  fees numeric(14,2) NOT NULL CHECK(fees>=0), sale_date date NOT NULL,
+  notes text NOT NULL DEFAULT '', created_at timestamptz NOT NULL DEFAULT now()
+);
