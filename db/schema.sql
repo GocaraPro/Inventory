@@ -76,3 +76,5 @@ CREATE TABLE IF NOT EXISTS sales (
   fees numeric(14,2) NOT NULL CHECK(fees>=0), sale_date date NOT NULL,
   notes text NOT NULL DEFAULT '', created_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS revision integer NOT NULL DEFAULT 0;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS reversed_at timestamptz;

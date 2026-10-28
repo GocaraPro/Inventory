@@ -8,6 +8,33 @@ export const saleInput=z.object({
   notes:z.string().max(2000).default('')
 });
 export type SaleInput=z.infer<typeof saleInput>;
+export const saleEditInput=saleInput.pick({salePrice:true,fees:true,saleDate:true,notes:true}).extend({id:z.uuid(),revision:z.number().int().nonnegative()});
+export const saleReturnInput=z.object({id:z.uuid(),revision:z.number().int().nonnegative()});
+export async function editSale(v:z.infer<typeof saleEditInput>,sql=db()) {
+  const results=await sql.transaction([
+    sql`SELECT pg_advisory_xact_lock(738203)`,
+    sql`UPDATE sales SET sale_price=${v.salePrice},fees=${v.fees},sale_date=${v.saleDate}::date,notes=${v.notes},revision=revision+1
+      WHERE id=${v.id} AND revision=${v.revision} AND reversed_at IS NULL
+      AND (product->>'purchase_date')::date<=${v.saleDate}::date RETURNING id`
+  ]);
+  return results[1].length>0;
+}
+export async function returnSale(v:z.infer<typeof saleReturnInput>,sql=db()) {
+  // Restore a separate purchase lot: the remaining original lot may have been edited.
+  // The ledger marker and stock insertion commit together, making retries harmless.
+  const results=await sql.transaction([
+    sql`SELECT pg_advisory_xact_lock(738203)`,
+    sql`WITH reversed AS (
+      UPDATE sales SET reversed_at=now(),revision=revision+1
+      WHERE id=${v.id} AND revision=${v.revision} AND reversed_at IS NULL RETURNING *
+    ) INSERT INTO holdings SELECT restored.* FROM reversed s
+      CROSS JOIN LATERAL jsonb_populate_record(NULL::holdings,
+        s.product || jsonb_build_object('id',gen_random_uuid(),'product_id',s.product_id,'quantity',s.quantity,'purchase_price',s.purchase_price)) restored
+      RETURNING id`,
+    sql`SELECT reversed_at FROM sales WHERE id=${v.id}`
+  ]);
+  return results[2][0]?.reversed_at!=null;
+}
 export async function recordSale(v:SaleInput,sql=db()) {
   // Lock and ledger insert share a transaction. Repeated submission IDs cannot
   // deduct stock twice; the original purchase is retained in the sale snapshot.

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {PGlite} from '@electric-sql/pglite';
 import {readFile} from 'node:fs/promises';
 import {randomUUID} from 'node:crypto';
-import {recordSale,saleInput} from '../src/lib/sales';
+import {recordSale,saleInput,editSale,returnSale,saleEditInput} from '../src/lib/sales';
 import {saleTotals} from '../src/lib/sales-math';
 import {db} from '../src/lib/db';
 test('sales preserve cost basis, reduce stock once and keep full sell-out history',async()=>{
@@ -34,5 +34,27 @@ test('sales preserve cost basis, reduce stock once and keep full sell-out histor
     assert.equal(saleInput.safeParse({...sale,fees:-1}).success,false);
     assert.equal(saleInput.safeParse({...sale,salePrice:0.001}).success,false);
     assert.equal(saleInput.safeParse({...sale,saleDate:'2026-02-30'}).success,false);
+    assert.equal(saleEditInput.safeParse({...sale,revision:0,fees:-1}).success,false);
+    assert.equal(await editSale({...sale,revision:0,saleDate:'2025-01-01'},sql),false);
+    assert.equal(await editSale({...sale,revision:0,salePrice:30,fees:4,notes:'Corrected'},sql),true);
+    assert.equal(await editSale({...sale,revision:0,salePrice:99},sql),false,'stale edits cannot overwrite changes');
+    const corrected=(await pg.query<{sale_price:string;fees:string;revision:number}>('SELECT * FROM sales WHERE id=$1',[sale.id])).rows[0];
+    assert.equal(Number(corrected.sale_price),30);
+    assert.equal(Number(corrected.fees),4);
+    assert.equal(corrected.revision,1);
+    assert.equal(await returnSale({id:sale.id,revision:0},sql),false,'stale return cannot cancel an edited sale');
+    assert.equal(await returnSale({id:sale.id,revision:1},sql),true);
+    assert.equal(await returnSale({id:sale.id,revision:1},sql),true,'retry is harmless');
+    const restored=(await pg.query<{id:string;quantity:number;purchase_price:string;kind:string}>('SELECT * FROM holdings')).rows;
+    assert.equal(restored.length,1);
+    assert.equal(restored[0].quantity,2);
+    assert.equal(Number(restored[0].purchase_price),10.10);
+    assert.equal(restored[0].kind,'sealed');
+    assert.notEqual(restored[0].id,holdingId);
+    assert.equal((await pg.query('SELECT * FROM sales WHERE reversed_at IS NULL')).rows.length,1);
+    assert.equal(await editSale({...sale,revision:2},sql),false,'cancelled sale cannot be edited');
+    // Returned units can be sold again without reviving the cancelled ledger entry.
+    assert.equal(await recordSale({...sale,id:randomUUID(),holdingId:restored[0].id},sql),true);
+    assert.equal((await pg.query('SELECT * FROM holdings')).rows.length,0);
   }finally{await pg.close();}
 });
