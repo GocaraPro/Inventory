@@ -51,11 +51,10 @@ export async function getPsaCard(id:number,deps:{sql?:ReturnType<typeof db>;fetc
     ON CONFLICT(tcgplayer_id) DO UPDATE SET data=excluded.data,fetched_at=excluded.fetched_at`;
   return parsed.data;
 }
-export async function syncPsa(){
-  await ensurePsaSchema();
-  if(!process.env.POKEMON_PRICE_TRACKER_API_KEY)return {updated:0,error:'PSA API key is not configured.'};
-  const sql=db();
-  const items=await sql`SELECT id,psa_tcgplayer_id,psa_printing,grade FROM holdings WHERE kind='graded' AND upper(grading_company)='PSA' AND psa_enabled ORDER BY psa_price_date NULLS FIRST,id`;
+export async function syncPsa(deps:{sql?:ReturnType<typeof db>;fetcher?:typeof fetch;key?:string}={}){
+  if(!deps.sql)await ensurePsaSchema();
+  const sql=deps.sql??db();
+  const items=await sql`SELECT id,psa_tcgplayer_id,psa_printing,grade FROM holdings WHERE kind='graded' AND upper(grading_company)='PSA' AND psa_enabled ORDER BY psa_checked_at NULLS FIRST,id`;
   let updated=0;
   const cards=new Map<number,ProviderCard|Error>();
   const started=Date.now();
@@ -64,13 +63,13 @@ export async function syncPsa(){
     try{
       const id=Number(item.psa_tcgplayer_id);
       if(!id)throw new PsaError('Link a TCGplayer card before enabling automatic PSA pricing.');
-      if(!cards.has(id)){try{cards.set(id,await getPsaCard(id));}catch(e){cards.set(id,e instanceof Error?e:new PsaError('PSA lookup failed.'));}}
+      if(!cards.has(id)){try{cards.set(id,await getPsaCard(id,{...deps,sql}));}catch(e){cards.set(id,e instanceof Error?e:new PsaError('PSA lookup failed.'));}}
       const card=cards.get(id)!;if(card instanceof Error)throw card;
       const quote=psaQuote(card,item.grade,item.psa_printing);
       if(!quote)throw new PsaError('No dated PSA sales median for this grade and printing. Previous price retained.');
-      await sql`UPDATE holdings SET psa_price_usd=${quote.usd},psa_price_date=${quote.date},psa_error=NULL WHERE id=${item.id} AND psa_enabled AND psa_tcgplayer_id=${id} AND psa_printing=${item.psa_printing} AND grade=${item.grade}`;
+      await sql`UPDATE holdings SET psa_price_usd=${quote.usd},psa_price_date=${quote.date},psa_checked_at=now(),psa_error=NULL WHERE id=${item.id} AND psa_enabled AND psa_tcgplayer_id=${id} AND psa_printing=${item.psa_printing} AND grade=${item.grade}`;
       updated++;
     }catch(e){await sql`UPDATE holdings SET psa_error=${psaErrorMessage(e)} WHERE id=${item.id}`;}
   }
-  return {updated};
+  return {updated,total:items.length,pending:items.length-updated,...(updated<items.length?{error:'Some PSA prices could not be refreshed. Previous prices retained; see each item for details.'}:{})};
 }

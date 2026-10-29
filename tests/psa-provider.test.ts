@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {PGlite} from '@electric-sql/pglite';
 import {readFile} from 'node:fs/promises';
-import {getPsaCard} from '../src/lib/psa-provider';
+import {getPsaCard,syncPsa} from '../src/lib/psa-provider';
 import {db} from '../src/lib/db';
 import {psaSchema} from '../src/lib/psa-schema';
 test('provider caches across grades, reserves credits, caps requests and honors 429',async()=>{
@@ -59,5 +59,21 @@ test('provider caches across grades, reserves credits, caps requests and honors 
       await pg.exec("UPDATE psa_requests SET attempted_at=now()-interval '61 seconds'");
     }
     await assert.rejects(getPsaCard(3,failing),/Three provider attempts/);
+    await pg.exec('TRUNCATE psa_budget,psa_requests,psa_cache,psa_provider_state');
+    await pg.exec("UPDATE holdings SET psa_enabled=true,psa_tcgplayer_id=1,psa_printing='Holofoil',psa_price_usd=75");
+    let dailyCalls=0;
+    const daily={...deps,fetcher:(async()=>{dailyCalls++;return Response.json({data:{tcgPlayerId:1,name:'Card',setName:'Set',cardNumber:'1',prices:{primaryPrinting:'Holofoil'},ebay:{salesByGrade:{psa10:{count:10,medianPrice:100+dailyCalls,lastSaleDate:'2026-01-01'}}}}});}) as typeof fetch};
+    assert.equal((await syncPsa(daily)).updated,1);
+    assert.equal((await syncPsa(daily)).updated,1);
+    assert.equal(dailyCalls,1,'same-day sync reuses provider cache');
+    await pg.exec("UPDATE psa_cache SET fetched_at=now()-interval '1 day'; TRUNCATE psa_requests");
+    assert.equal((await syncPsa(daily)).updated,1);
+    assert.equal(dailyCalls,2,'next-day sync fetches a new quote');
+    const refreshed=(await pg.query<{psa_price_usd:string;psa_checked_at:unknown}>('SELECT * FROM holdings')).rows[0];
+    assert.equal(Number(refreshed.psa_price_usd),102);
+    assert.ok(refreshed.psa_checked_at);
+    await pg.exec("UPDATE psa_cache SET fetched_at=now()-interval '1 day'; TRUNCATE psa_requests");
+    assert.equal((await syncPsa({...daily,fetcher:(async()=>new Response('',{status:503})) as typeof fetch})).pending,1);
+    assert.equal(Number((await pg.query<{psa_price_usd:string}>('SELECT * FROM holdings')).rows[0].psa_price_usd),102);
   }finally{await pg.close();}
 });

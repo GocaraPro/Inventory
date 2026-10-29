@@ -21,7 +21,7 @@ export async function getHoldings(): Promise<Holding[]> {
       purchasePrice: Number(r.purchase_price), purchaseDate: dateOnly(r.purchase_date), notes: r.notes,
       gradingCompany: r.grading_company, grade: r.grade, certificate: r.certificate, manualPrice: manual,
       currentPrice: selectPrice(r.kind,r.finish,r.psa_enabled?psaPrice:manual,r.trend === null ? null : Number(r.trend),r.holo_trend === null ? null : Number(r.holo_trend)),
-      psaEnabled:r.psa_enabled,psaTcgplayerId:r.psa_tcgplayer_id,psaPrinting:r.psa_printing,psaPriceUsd:psaPrice,psaPriceDate:r.psa_price_date,psaError:r.psa_error,
+      psaCheckedAt:r.psa_checked_at,psaEnabled:r.psa_enabled,psaTcgplayerId:r.psa_tcgplayer_id,psaPrinting:r.psa_printing,psaPriceUsd:psaPrice,psaPriceDate:r.psa_price_date,psaError:r.psa_error,
       customImageUrl:r.custom_image_url,
       priceDate: r.kind === "graded" ? r.psa_enabled?r.psa_price_date:r.manual_price_date : r.price_date, ...metadataFor(r.product_id,r.expansion_id) };
   });

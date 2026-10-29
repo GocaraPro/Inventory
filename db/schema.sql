@@ -78,3 +78,4 @@ CREATE TABLE IF NOT EXISTS sales (
 );
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS revision integer NOT NULL DEFAULT 0;
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS reversed_at timestamptz;
+ALTER TABLE holdings ADD COLUMN IF NOT EXISTS psa_checked_at timestamptz;

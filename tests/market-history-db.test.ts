@@ -20,14 +20,24 @@ await db.exec(`INSERT INTO catalog(id,name,category,kind,expansion_id,trend,pric
 await db.query(insert,['2026-10-25T00:45:00Z']);
 assert.equal((await db.query<{n:number}>('select count(*)::int n from market_history')).rows[0].n,2);
 const route=await readFile('src/app/api/history/route.ts','utf8');
-const query=route.match(/sql`(WITH pair[\s\S]*?)`/)![1].replaceAll('${dates[0].date}','$1').replaceAll('${dates[1].date}','$2');
-const rows=(await db.query<{id:number}>(query,['2026-10-27','2026-10-26'])).rows;
-// Each category has its own limit: sealed gains cannot crowd out card gains.
-assert.deepEqual(rows.map(r=>r.id),[1,3,2,10,11,12,13,14,17,18,19,20,21]);
 const history=route.match(/sql`(SELECT date,\(prices[\s\S]*?)`/)![1].replaceAll('${String(id)}','$1').replaceAll('${finish}','$2');
 assert.deepEqual((await db.query<{price:number|null}>(history,['1',0])).rows.map(r=>Number(r.price)),[100,120]);
 assert.deepEqual((await db.query<{price:number|null}>(history,['1',1])).rows.map(r=>Number(r.price)),[200,200]);
 await db.exec(`INSERT INTO market_history VALUES('2026-01-01','2026-01-01','{}')`);await db.exec(clean);
 assert.equal((await db.query<{n:number}>('select count(*)::int n from market_history')).rows[0].n,2);
+// Six days: sustained changes qualify; spikes and penny-card jumps do not.
+await db.exec('DELETE FROM market_history');
+for(let day=1;day<=6;day++){
+ const prices:Record<string,number[]>={};
+ for(let id=1;id<=30;id++)prices[id]=[day<=3?100:(id<10?120:80),200];
+ prices['1']=[day===6?800:100,200];
+ prices['2']=[day<=3?0.2:80,200];
+ prices['3']=[day<=3?100:500,200];
+ prices['4']=[day===6?0:100,200];
+ await db.query('INSERT INTO market_history(date,source_date,prices) VALUES($1,$1::date,$2)',[`2026-10-0${day}`,JSON.stringify(prices)]);
+}
+const query=route.match(/sql`(WITH observations[\s\S]*?)`/)![1].replaceAll('${dates[5].date}','$1').replaceAll('${dates[0].date}','$2');
+const rows=(await db.query<{id:number}>(query,['2026-10-01','2026-10-06'])).rows;
+assert.deepEqual(rows.map(r=>r.id),[5,6,7,8,9,24,25,26,27,28,10,11,12,13,14]);
 }finally{await db.close();}
 });

@@ -3,11 +3,12 @@ import { fetchCatalog } from "./cardmarket";
 import {syncPsa} from './psa-provider';
 export async function syncCardmarket() {
   const sql = db();
+  // Run independently: a Cardmarket outage must not freeze graded prices.
+  const psa=await syncPsa().catch(()=>({updated:0,error:'PSA update failed; previous prices retained.'}));
   try {
     const products = await fetchCatalog();
     const sourceDate = products[0].priceDate!;
     // PSA failures must not prevent the independent Cardmarket import.
-    const psa=await syncPsa().catch(()=>({updated:0,error:'PSA update failed; previous prices retained.'}));
     // Stage each batch inside one transaction: a failed import cannot expose partial prices.
     const statements = [];
     for (let i=0;i<products.length;i+=2000) {

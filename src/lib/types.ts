@@ -12,7 +12,7 @@ export type Holding = ProductMetadata & {
   gradingCompany: string | null; grade: string | null; certificate: string | null;
   manualPrice: number | null; currentPrice: number | null; priceDate: string | null;
   expansionId: number;
-  psaEnabled?:boolean; psaTcgplayerId?:number|null; psaPrinting?:string|null;
+  psaCheckedAt?:string|null; psaEnabled?:boolean; psaTcgplayerId?:number|null; psaPrinting?:string|null;
   psaPriceUsd?:number|null; psaPriceDate?:string|null; psaError?:string|null;
 };
 export type Snapshot = { date: string; value: number; cost: number; unpriced: number };

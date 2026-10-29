@@ -7,6 +7,10 @@ export async function GET(req:Request) {
   const expected=`Bearer ${secret}`;
   const actualBytes=Buffer.from(supplied),expectedBytes=Buffer.from(expected);
   if (!secret || actualBytes.length!==expectedBytes.length || !timingSafeEqual(actualBytes,expectedBytes)) return Response.json({error:"Unauthorized"},{status:401});
-  try {return Response.json(await syncCardmarket());}
+  try {
+    const result=await syncCardmarket();
+    console.info('Daily price sync completed',JSON.stringify(result));
+    return Response.json(result);
+  }
   catch {return Response.json({error:"Import failed; previous data retained."},{status:502});}
 }

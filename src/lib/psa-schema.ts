@@ -1,6 +1,7 @@
 import {db} from './db';
 // Additive migration, also included in db/schema.sql for fresh installations.
 export const psaSchema=[
+  'ALTER TABLE holdings ADD COLUMN IF NOT EXISTS psa_checked_at timestamptz',
   'ALTER TABLE holdings ADD COLUMN IF NOT EXISTS psa_enabled boolean NOT NULL DEFAULT false',
   'ALTER TABLE holdings ADD COLUMN IF NOT EXISTS psa_tcgplayer_id integer',
   'ALTER TABLE holdings ADD COLUMN IF NOT EXISTS psa_printing text',
