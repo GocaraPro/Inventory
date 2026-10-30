@@ -1,7 +1,7 @@
 import { z } from 'zod';
 export class PsaError extends Error {}
 export function psaErrorMessage(error:unknown){return error instanceof PsaError?error.message:'PSA update failed. Check the server configuration; previous prices are retained.';}
-const gradeData=z.object({count:z.number().int().nonnegative().optional(),medianPrice:z.number().finite().nonnegative().nullable().optional(),lastSaleDate:z.string().nullable().optional(),lastMarketUpdate:z.string().optional()});
+const gradeData=z.object({count:z.number().int().nonnegative().optional(),averagePrice:z.number().finite().nonnegative().nullable().optional(),lastSaleDate:z.string().nullable().optional(),lastMarketUpdate:z.string().optional()});
 const pool=z.object({salesByGrade:z.record(z.string(),gradeData).optional()});
 export const providerCard=z.object({
   tcgPlayerId:z.union([z.string(),z.number()]).transform(String),name:z.string(),setName:z.string(),cardNumber:z.string(),
@@ -16,10 +16,10 @@ export function psaQuote(card:ProviderCard,grade:string,printing:string){
   if(!printing||!primary)return null;
   const sales=printing===primary?card.ebay?.salesByGrade:card.ebay?.salesByPrinting?.[printing]?.salesByGrade;
   const value=sales?.[`psa${grade.replace('.','_')}`];
-  if(!value||!value.count||!value.medianPrice)return null;
+  if(!value||!value.count||!value.averagePrice)return null;
   const date=value.lastSaleDate;
   if(!date||!Number.isFinite(Date.parse(date)))return null;
-  return {usd:value.medianPrice,eur:value.medianPrice,date:new Date(date).toISOString(),sales:value.count};
+  return {usd:value.averagePrice,eur:value.averagePrice,date:new Date(date).toISOString(),sales:value.count};
 }
 export function psaPrintings(card:ProviderCard){
   return [...new Set([card.prices?.primaryPrinting,...Object.keys(card.ebay?.salesByPrinting??{})].filter((v):v is string=>!!v))];

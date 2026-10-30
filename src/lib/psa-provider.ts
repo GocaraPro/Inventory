@@ -5,7 +5,7 @@ export async function preparePsa(v:{psaEnabled:boolean;psaTcgplayerId?:number|nu
   if(!v.psaEnabled)return null;
   if(v.kind!=='graded'||v.gradingCompany?.toUpperCase()!=='PSA'||!v.psaTcgplayerId||!v.psaPrinting||!v.grade)throw new PsaError('Select a PSA card, product ID and exact printing.');
   const quote=psaQuote(await getPsaCard(v.psaTcgplayerId),v.grade,v.psaPrinting);
-  if(!quote)throw new PsaError('No dated sales median is available for this PSA grade and printing. Use manual pricing for now.');
+  if(!quote)throw new PsaError('No dated sales average is available for this PSA grade and printing. Use manual pricing for now.');
   return quote;
 }
 export async function getPsaCard(id:number,deps:{sql?:ReturnType<typeof db>;fetcher?:typeof fetch;key?:string}={}):Promise<ProviderCard>{
@@ -13,7 +13,7 @@ export async function getPsaCard(id:number,deps:{sql?:ReturnType<typeof db>;fetc
   if(!key)throw new PsaError('PokemonPriceTracker API key is not configured.');
   if(!deps.sql)await ensurePsaSchema();
   const sql=deps.sql??db();
-  const [cached]=await sql`SELECT data FROM psa_cache WHERE tcgplayer_id=${id} AND fetched_at >= date_trunc('day',now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'`;
+  const [cached]=await sql`SELECT data FROM psa_cache WHERE tcgplayer_id=${id} AND data->>'pricingMetric'='average' AND fetched_at >= date_trunc('day',now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'`;
   if(cached)return providerCard.parse(cached.data);
   const [blocked]=await sql`SELECT id FROM psa_provider_state WHERE id=1 AND blocked_until>now()`;
   if(blocked)throw new PsaError('Provider requests are paused after a rate limit or authentication error. Cached prices remain available.');
@@ -24,7 +24,7 @@ export async function getPsaCard(id:number,deps:{sql?:ReturnType<typeof db>;fetc
     WHERE psa_requests.attempted_at < now()-interval '60 seconds' AND psa_requests.attempts<3 RETURNING tcgplayer_id`;
   if(!claim){
     // The winning request may have filled the cache between our first read and claim.
-    const [ready]=await sql`SELECT data FROM psa_cache WHERE tcgplayer_id=${id} AND fetched_at >= date_trunc('day',now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'`;
+    const [ready]=await sql`SELECT data FROM psa_cache WHERE tcgplayer_id=${id} AND data->>'pricingMetric'='average' AND fetched_at >= date_trunc('day',now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'`;
     if(ready)return providerCard.parse(ready.data);
     const [state]=await sql`SELECT attempts FROM psa_requests WHERE tcgplayer_id=${id} AND date=(now() AT TIME ZONE 'UTC')::date`;
     throw new PsaError(state?.attempts>=3?'Three provider attempts failed today for this card. Try after the daily reset.':'This card is being fetched or a recent attempt failed. Please retry in one minute.');
@@ -47,7 +47,7 @@ export async function getPsaCard(id:number,deps:{sql?:ReturnType<typeof db>;fetc
   const parsed=providerCard.safeParse(Array.isArray(body.data)&&body.data.length===1?body.data[0]:body.data);
   if(!parsed.success||parsed.data.tcgPlayerId!==String(id))throw new PsaError('Provider returned an unexpected card. No price was applied.');
   // Store only the validated fields; no raw listings, account data or credentials.
-  await sql`INSERT INTO psa_cache(tcgplayer_id,data,fetched_at) VALUES(${id},${JSON.stringify(parsed.data)}::jsonb,now())
+  await sql`INSERT INTO psa_cache(tcgplayer_id,data,fetched_at) VALUES(${id},${JSON.stringify({...parsed.data,pricingMetric:'average'})}::jsonb,now())
     ON CONFLICT(tcgplayer_id) DO UPDATE SET data=excluded.data,fetched_at=excluded.fetched_at`;
   return parsed.data;
 }
@@ -66,7 +66,7 @@ export async function syncPsa(deps:{sql?:ReturnType<typeof db>;fetcher?:typeof f
       if(!cards.has(id)){try{cards.set(id,await getPsaCard(id,{...deps,sql}));}catch(e){cards.set(id,e instanceof Error?e:new PsaError('PSA lookup failed.'));}}
       const card=cards.get(id)!;if(card instanceof Error)throw card;
       const quote=psaQuote(card,item.grade,item.psa_printing);
-      if(!quote)throw new PsaError('No dated PSA sales median for this grade and printing. Previous price retained.');
+      if(!quote)throw new PsaError('No dated PSA sales average for this grade and printing. Previous price retained.');
       await sql`UPDATE holdings SET psa_price_usd=${quote.usd},psa_price_date=${quote.date},psa_checked_at=now(),psa_error=NULL WHERE id=${item.id} AND psa_enabled AND psa_tcgplayer_id=${id} AND psa_printing=${item.psa_printing} AND grade=${item.grade}`;
       updated++;
     }catch(e){await sql`UPDATE holdings SET psa_error=${psaErrorMessage(e)} WHERE id=${item.id}`;}

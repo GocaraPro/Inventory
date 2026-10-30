@@ -62,7 +62,7 @@ test('provider caches across grades, reserves credits, caps requests and honors 
     await pg.exec('TRUNCATE psa_budget,psa_requests,psa_cache,psa_provider_state');
     await pg.exec("UPDATE holdings SET psa_enabled=true,psa_tcgplayer_id=1,psa_printing='Holofoil',psa_price_usd=75");
     let dailyCalls=0;
-    const daily={...deps,fetcher:(async()=>{dailyCalls++;return Response.json({data:{tcgPlayerId:1,name:'Card',setName:'Set',cardNumber:'1',prices:{primaryPrinting:'Holofoil'},ebay:{salesByGrade:{psa10:{count:10,medianPrice:100+dailyCalls,lastSaleDate:'2026-01-01'}}}}});}) as typeof fetch};
+    const daily={...deps,fetcher:(async()=>{dailyCalls++;return Response.json({data:{tcgPlayerId:1,name:'Card',setName:'Set',cardNumber:'1',prices:{primaryPrinting:'Holofoil'},ebay:{salesByGrade:{psa10:{count:10,averagePrice:100+dailyCalls,lastSaleDate:'2026-01-01'}}}}});}) as typeof fetch};
     assert.equal((await syncPsa(daily)).updated,1);
     assert.equal((await syncPsa(daily)).updated,1);
     assert.equal(dailyCalls,1,'same-day sync reuses provider cache');
